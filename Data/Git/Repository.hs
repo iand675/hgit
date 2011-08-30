@@ -15,6 +15,7 @@ module Data.Git.Repository (
   objectDatabasePath,
   workingDirectoryPath ) where
 import Data.Git.Common
+import Data.Git.Errors
 import Bindings.Libgit2.Repository 
 import System.FilePath
 import Foreign.C.String
@@ -43,9 +44,7 @@ open fp = withCString fp $ \str -> do
   result   <- c'git_repository_open writeVal str
   retVal <- peek writeVal
   free writeVal
-  case result of
-    0 -> toRepository retVal
-    _ -> error "You terrible person"
+  result `errorOr` toRepository retVal
     
 openWithPaths :: GitDir -> Maybe ObjectDir -> Maybe IndexFile -> Maybe WorkTree -> IO Repository
 openWithPaths fp od ixf wt = withCString fp $ \str -> do
@@ -57,9 +56,7 @@ openWithPaths fp od ixf wt = withCString fp $ \str -> do
   mapM_ free [odcs, ixfcs, wtcs]
   retVal <- peek writeVal
   free writeVal
-  case result of
-    0 -> toRepository retVal
-    _ -> error "oh noes"
+  result `errorOr` toRepository retVal
     
 openWithPathsAndObjectDatabase :: GitDir -> ObjectDB -> Maybe IndexFile -> Maybe WorkTree -> IO Repository
 openWithPathsAndObjectDatabase gd odb mif mwt = undefined
@@ -82,17 +79,13 @@ index repo = withForeignPtr (repoPrim repo) $ \r ->
   alloca $ \ix -> do
     result <- c'git_repository_index ix r
     retVal <- peek ix
-    case result of
-      0 -> toIndex retVal
-      _ -> error "oh noes"
+    result `errorOr` toIndex retVal
 
 initHelper i fp = withCString fp $ \str -> do
   alloca $ \ptr -> do
     result <- c'git_repository_init ptr str i
     retVal <- peek ptr
-    case result of
-      0 -> toRepository retVal
-      _ -> error "oh noes"
+    result `errorOr` toRepository retVal
 
 init :: FilePath -> IO Repository
 init = initHelper 0
