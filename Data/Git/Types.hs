@@ -3,7 +3,6 @@ module Data.Git.Types where
 import Foreign.ForeignPtr
 import Bindings.Libgit2
 
-import Prelude hiding ((.), id)
 newtype Repository = Repository {repoPrim :: ForeignPtr C'git_repository}
 newtype ObjectDB   = ObjectDB   {odbPrim :: ForeignPtr C'git_odb}
 newtype Config = Config {confPrim :: ForeignPtr C'git_config}

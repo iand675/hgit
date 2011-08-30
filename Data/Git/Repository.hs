@@ -1,6 +1,21 @@
-module Data.Git.Repository where
+module Data.Git.Repository (
+  Repository (), -- | A git repository handle.
+  open,
+  openWithPaths,
+  database,
+  index,
+  init,
+  initBare,
+  isHeadDetached,
+  isHeadOrphan,
+  isEmpty,
+  isBare,
+  path,
+  indexPath,
+  objectDatabasePath,
+  workingDirectoryPath ) where
 import Data.Git.Common
-import Bindings.Libgit2.Repository
+import Bindings.Libgit2.Repository 
 import System.FilePath
 import Foreign.C.String
 import Data.Git.Types
@@ -9,6 +24,7 @@ import Foreign.Ptr
 import Foreign.ForeignPtr
 import Foreign.Storable
 import Foreign.Marshal
+import Prelude hiding (init)
 type GitDir    = FilePath
 type ObjectDir = FilePath
 type IndexFile = FilePath
