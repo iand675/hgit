@@ -19,3 +19,10 @@ ptrFunc f m = alloca $ \ptrptr -> do
   ptr <- peek ptrptr
   free ptrptr
   result `errorOr` m ptr
+
+stateMod :: Integral a1 => (Ptr a -> IO a1) -> ForeignPtr a -> IO ()
+stateMod f p = withForeignPtr p $ \p' -> do
+  result <- f p'
+  result `errorOr` return ()
+  
+stateMod' = flip withForeignPtr
