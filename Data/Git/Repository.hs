@@ -23,6 +23,7 @@ import Data.Git.Common
 import Data.Git.Errors
 import Data.Git.Helpers
 import Bindings.Libgit2.Repository 
+import Bindings.Libgit2.Common
 import System.FilePath
 import Foreign.C.String
 import Data.Git.Types
@@ -33,6 +34,8 @@ import Foreign.Storable
 import Foreign.Marshal
 import Control.Exception
 import Prelude hiding (init)
+import Data.List hiding (init)
+
 type GitDir    = FilePath
 type ObjectDir = FilePath
 type IndexFile = FilePath
@@ -50,22 +53,28 @@ openWithPaths fp od ixf wt = withCString fp $ \str -> do
   repo <- ptrFunc (\ptr -> c'git_repository_open2 ptr str odcs ixfcs wtcs) toRepository
   mapM_ free [odcs, ixfcs, wtcs]
   return repo
-    
--- ObjectDBs have weird semantics in the C code since the odb ref is managed on the C side.
--- Need to figure out how to sanely deal with this before implementing something that's wrong.
-openWithPathsAndObjectDatabase :: GitDir -> ObjectDB -> Maybe IndexFile -> Maybe WorkTree -> IO Repository
-openWithPathsAndObjectDatabase gd odb mif mwt = throw NotImplemented
-    
-fromBool False = 0
-fromBool True  = 1
 
-discover ::  StartPath -> Bool -> [FilePath] -> IO (Maybe FilePath)
-discover fp across ceils = throw NotImplemented
+openWithPathsAndObjectDatabase :: GitDir -> ObjectDB -> Maybe IndexFile -> Maybe WorkTree -> IO Repository
+openWithPathsAndObjectDatabase gd odb mif mwt = withCString gd $ \gd' -> do
+  ixf <- maybeCStr mif
+  wt  <- maybeCStr mwt  
+  retVal <- ptrFunc (\pp -> c'git_repository_open3 pp gd' (odbPrim odb) ixf wt) toRepository
+  mapM_ free [ixf, wt]
+  return retVal
   
+discover :: StartPath -> Bool -> [FilePath] -> IO (Maybe FilePath)
+discover fp across ceils = withCString fp $ \start -> withCString ceils' $ \c -> do
+  buffer <- mallocArray c'GIT_PATH_MAX
+  result <- c'git_repository_discover buffer c'GIT_PATH_MAX start (fromBool across) c
+  retVal <- case result of 
+    0 -> peekCString buffer >>= (return . Just)
+    _ -> return Nothing
+  free buffer
+  return retVal
+  where ceils' = intercalate [pathListSeparator] ceils
+
 database :: Repository -> IO ObjectDB
-database repo = withForeignPtr (repoPrim repo) $ \r -> do
-  odb <- c'git_repository_database r
-  toObjectDB odb
+database repo = withForeignPtr (repoPrim repo) $ \r -> c'git_repository_database r >>= toObjectDB
 
 index :: Repository -> IO Index
 index repo = withForeignPtr (repoPrim repo) $ \r -> ptrFunc (\ix -> c'git_repository_index ix r) toIndex
@@ -90,7 +99,7 @@ isEmpty = boolHelper c'git_repository_is_empty . repoPrim
 isBare :: Repository -> IO Bool
 isBare = boolHelper c'git_repository_is_bare . repoPrim
 
--- don't need to worry about handling CString here. It's a struct member.
+-- don't need to worry about handling CString here. It's (at least currently) a struct member.
 pathHelper num repo = withForeignPtr (repoPrim repo) (\ptr -> c'git_repository_path ptr num) >>= peekCString
   
 path :: Repository -> IO FilePath
@@ -106,4 +115,5 @@ workingDirectoryPath :: Repository -> IO FilePath
 workingDirectoryPath = pathHelper 3
 
 config :: Repository -> FilePath -> FilePath -> IO Config
-config = throw NotImplemented
+config repo user system = withCString user $ \u -> withCString system $ \s -> 
+  withForeignPtr (repoPrim repo) $ \r -> ptrFunc (\pp -> c'git_repository_config pp r u s) toConfig
