@@ -10,6 +10,7 @@ newtype ObjectDB   = ObjectDB   {odbPrim :: Ptr C'git_odb}
 newtype Config = Config {confPrim :: ForeignPtr C'git_config}
 newtype Index = Index {ixPrim :: ForeignPtr C'git_index}
 newtype Tag = Tag {tagPrim :: ForeignPtr C'git_tag}
+newtype IndexEntry = IndexEntry {ixePrim :: ForeignPtr C'git_index_entry}
 
 toRepository ptr = do 
   fptr <- newForeignPtr p'git_repository_free ptr
