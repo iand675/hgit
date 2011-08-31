@@ -7,7 +7,9 @@ module Data.Git.Repository (
   StartPath,
   open,
   openWithPaths,
+  openWithPathsAndObjectDatabase,
   database,
+  discover,
   index,
   init,
   initBare,
@@ -18,7 +20,8 @@ module Data.Git.Repository (
   path,
   indexPath,
   objectDatabasePath,
-  workingDirectoryPath ) where
+  workingDirectoryPath, 
+  config ) where
 import Data.Git.Common
 import Data.Git.Errors
 import Data.Git.Helpers
