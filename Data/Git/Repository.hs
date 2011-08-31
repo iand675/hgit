@@ -1,5 +1,10 @@
 module Data.Git.Repository (
   Repository (), -- | A git repository handle.
+  GitDir,
+  ObjectDir,
+  IndexFile,
+  WorkTree,
+  StartPath,
   open,
   openWithPaths,
   database,
@@ -16,6 +21,7 @@ module Data.Git.Repository (
   workingDirectoryPath ) where
 import Data.Git.Common
 import Data.Git.Errors
+import Data.Git.Helpers
 import Bindings.Libgit2.Repository 
 import System.FilePath
 import Foreign.C.String
@@ -33,31 +39,17 @@ type IndexFile = FilePath
 type WorkTree  = FilePath
 type StartPath = FilePath
 
-maybeCStr Nothing  = return nullPtr
-maybeCStr (Just s) = newCString s
-
-maybePtr Nothing  = return nullPtr
-maybePtr (Just s) = malloc
-
 open :: FilePath -> IO Repository
-open fp = withCString fp $ \str -> do
-  writeVal <- malloc
-  result   <- c'git_repository_open writeVal str
-  retVal <- peek writeVal
-  free writeVal
-  result `errorOr` toRepository retVal
+open fp = withCString fp $ \str -> ptrFunc (\pp -> c'git_repository_open pp str) toRepository
     
 openWithPaths :: GitDir -> Maybe ObjectDir -> Maybe IndexFile -> Maybe WorkTree -> IO Repository
 openWithPaths fp od ixf wt = withCString fp $ \str -> do
   odcs  <- maybeCStr od
   ixfcs <- maybeCStr ixf
   wtcs  <- maybeCStr wt
-  writeVal <- malloc
-  result <- c'git_repository_open2 writeVal str odcs ixfcs wtcs
+  repo <- ptrFunc (\ptr -> c'git_repository_open2 ptr str odcs ixfcs wtcs) toRepository
   mapM_ free [odcs, ixfcs, wtcs]
-  retVal <- peek writeVal
-  free writeVal
-  result `errorOr` toRepository retVal
+  return repo
     
 -- ObjectDBs have weird semantics in the C code since the odb ref is managed on the C side.
 -- Need to figure out how to sanely deal with this before implementing something that's wrong.
@@ -76,25 +68,15 @@ database repo = withForeignPtr (repoPrim repo) $ \r -> do
   toObjectDB odb
 
 index :: Repository -> IO Index
-index repo = withForeignPtr (repoPrim repo) $ \r -> 
-  alloca $ \ix -> do
-    result <- c'git_repository_index ix r
-    retVal <- peek ix
-    result `errorOr` toIndex retVal
+index repo = withForeignPtr (repoPrim repo) $ \r -> ptrFunc (\ix -> c'git_repository_index ix r) toIndex
 
-initHelper i fp = withCString fp $ \str -> do
-  alloca $ \ptr -> do
-    result <- c'git_repository_init ptr str i
-    retVal <- peek ptr
-    result `errorOr` toRepository retVal
+initHelper i fp = withCString fp $ \str -> ptrFunc (\ptr -> c'git_repository_init ptr str i) toRepository
 
 init :: FilePath -> IO Repository
 init = initHelper 0
 
 initBare :: FilePath -> IO Repository
 initBare = initHelper 1
-
-boolHelper f val = withForeignPtr val f >>= return . (/= 0)
 
 isHeadDetached :: Repository -> IO Bool
 isHeadDetached = boolHelper c'git_repository_head_detached . repoPrim
@@ -108,11 +90,8 @@ isEmpty = boolHelper c'git_repository_is_empty . repoPrim
 isBare :: Repository -> IO Bool
 isBare = boolHelper c'git_repository_is_bare . repoPrim
 
--- todo fix use of C'git_repository_pathid to use an enum
-pathHelper num repo = do
-  cstr <- withForeignPtr (repoPrim repo) (\ptr -> c'git_repository_path ptr num)
-  str  <- peekCString cstr -- this is a struct member, so don't need to sweat deallocation.
-  return str
+-- don't need to worry about handling CString here. It's a struct member.
+pathHelper num repo = withForeignPtr (repoPrim repo) (\ptr -> c'git_repository_path ptr num) >>= peekCString
   
 path :: Repository -> IO FilePath
 path = pathHelper 0
