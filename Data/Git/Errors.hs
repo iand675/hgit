@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 module Data.Git.Errors (
-  GitError,
+  GitError(..),
   errorOr
   ) where
 import Data.Typeable

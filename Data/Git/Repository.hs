@@ -25,6 +25,7 @@ import Foreign.Ptr
 import Foreign.ForeignPtr
 import Foreign.Storable
 import Foreign.Marshal
+import Control.Exception
 import Prelude hiding (init)
 type GitDir    = FilePath
 type ObjectDir = FilePath
@@ -58,17 +59,17 @@ openWithPaths fp od ixf wt = withCString fp $ \str -> do
   free writeVal
   result `errorOr` toRepository retVal
     
+-- ObjectDBs have weird semantics in the C code since the odb ref is managed on the C side.
+-- Need to figure out how to sanely deal with this before implementing something that's wrong.
 openWithPathsAndObjectDatabase :: GitDir -> ObjectDB -> Maybe IndexFile -> Maybe WorkTree -> IO Repository
-openWithPathsAndObjectDatabase gd odb mif mwt = undefined
-  
-  
+openWithPathsAndObjectDatabase gd odb mif mwt = throw NotImplemented
+    
 fromBool False = 0
 fromBool True  = 1
 
 discover ::  StartPath -> Bool -> [FilePath] -> IO (Maybe FilePath)
-discover fp across ceils = error "Not implemented yet"
+discover fp across ceils = throw NotImplemented
   
-
 database :: Repository -> IO ObjectDB
 database repo = withForeignPtr (repoPrim repo) $ \r -> do
   odb <- c'git_repository_database r
@@ -93,19 +94,19 @@ init = initHelper 0
 initBare :: FilePath -> IO Repository
 initBare = initHelper 1
 
-boolHelper val f = withForeignPtr val f >>= return . (/= 0)
+boolHelper f val = withForeignPtr val f >>= return . (/= 0)
 
 isHeadDetached :: Repository -> IO Bool
-isHeadDetached repo = boolHelper (repoPrim repo) c'git_repository_head_detached
+isHeadDetached = boolHelper c'git_repository_head_detached . repoPrim
 
 isHeadOrphan :: Repository -> IO Bool
-isHeadOrphan repo = boolHelper (repoPrim repo) c'git_repository_head_orphan
+isHeadOrphan = boolHelper c'git_repository_head_orphan . repoPrim
 
 isEmpty :: Repository -> IO Bool
-isEmpty repo = boolHelper (repoPrim repo) c'git_repository_is_empty
+isEmpty = boolHelper c'git_repository_is_empty . repoPrim
 
 isBare :: Repository -> IO Bool
-isBare repo = boolHelper (repoPrim repo) c'git_repository_is_bare
+isBare = boolHelper c'git_repository_is_bare . repoPrim
 
 -- todo fix use of C'git_repository_pathid to use an enum
 pathHelper num repo = do
@@ -126,4 +127,4 @@ workingDirectoryPath :: Repository -> IO FilePath
 workingDirectoryPath = pathHelper 3
 
 config :: Repository -> FilePath -> FilePath -> IO Config
-config = undefined
+config = throw NotImplemented
